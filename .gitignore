@@ -5,6 +5,7 @@
 *.dylib
 *.test
 *.out
+delete-tweet
 /vendor/
 /Godeps/
 ._*

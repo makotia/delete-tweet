@@ -71,6 +71,12 @@ func main() {
 	yellow := color.New(color.FgYellow)
 	red := color.New(color.FgRed)
 
+	if len(os.Args) != 2 {
+		red.Print("[ERROR] ")
+		fmt.Printf("Usage: %s [config.toml]\n", os.Args[0])
+		os.Exit(1)
+	}
+
 	if client, config, err = loadConfigFrom(os.Args[1]); err != nil {
 		log.Fatalf("Could not parse config file: %v\n", err)
 	}
