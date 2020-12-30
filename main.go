@@ -1,11 +1,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -65,19 +65,19 @@ func main() {
 		query   url.Values
 		results *twittergo.Timeline
 		config  *config
+		runType     = flag.String("type", "tweet", "Tweet or Favorite")
+		conf        = flag.String("conf", "", "config path")
+		count   int = 200
+		minwait     = time.Duration(10) * time.Second
 	)
+
+	flag.Parse()
 
 	cyan := color.New(color.FgCyan)
 	yellow := color.New(color.FgYellow)
 	red := color.New(color.FgRed)
 
-	if len(os.Args) != 2 {
-		red.Print("[ERROR] ")
-		fmt.Printf("Usage: %s [config.toml]\n", os.Args[0])
-		os.Exit(1)
-	}
-
-	if client, config, err = loadConfigFrom(os.Args[1]); err != nil {
+	if client, config, err = loadConfigFrom(*conf); err != nil {
 		log.Fatalf("Could not parse config file: %v\n", err)
 	}
 
@@ -86,15 +86,15 @@ func main() {
 		log.Println(err)
 	}
 
-	const (
-		count   int = 200
-		urltmpl     = "/1.1/statuses/user_timeline.json?%v"
-		minwait     = time.Duration(10) * time.Second
-	)
-
 	query = url.Values{}
 	query.Set("count", fmt.Sprintf("%v", count))
 	query.Set("screen_name", user.ScreenName())
+
+	tlEndpoint := fmt.Sprintf("/1.1/statuses/user_timeline.json?%v", query.Encode())
+
+	if *runType == "favorite" {
+		tlEndpoint = fmt.Sprintf("/1.1/favorites/list.json?%v", query.Encode())
+	}
 
 	total := 0
 	protected := 0
@@ -102,8 +102,7 @@ func main() {
 	end := false
 
 	for {
-		endpoint := fmt.Sprintf(urltmpl, query.Encode())
-		if req, err = http.NewRequest("GET", endpoint, nil); err != nil {
+		if req, err = http.NewRequest("GET", tlEndpoint, nil); err != nil {
 			log.Fatalf("Could not parse request: %v\n", err)
 		}
 		if resp, err = client.SendRequest(req); err != nil {
@@ -142,11 +141,14 @@ func main() {
 				protected++
 				continue
 			} else {
-				endpoint := "/1.1/statuses/destroy/" + strconv.FormatUint(tweet.Id(), 10) + ".json"
+				destoroyEndpoint := "/1.1/statuses/destroy/" + strconv.FormatUint(tweet.Id(), 10) + ".json"
+				if *runType == "favorite" {
+					destoroyEndpoint = "https://api.twitter.com/1.1/favorites/destroy.json"
+				}
 				data := url.Values{}
 				data.Set("id", strconv.FormatUint(tweet.Id(), 10))
 				body := strings.NewReader(data.Encode())
-				req, err = http.NewRequest("POST", endpoint, body)
+				req, err = http.NewRequest("POST", destoroyEndpoint, body)
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				if err != nil {
 					log.Fatalln(err)
